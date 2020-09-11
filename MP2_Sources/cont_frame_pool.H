@@ -44,10 +44,10 @@ private:
     /* -- Frame pool data structures */
 
     /* We implement the simple frame pool with a bitmap
-    0xFF -> Free frame
-    0x0F -> Head of sequence
-    0xF0 -> Allocated Frame
-    0x00 -> Inaccessible
+    00 -> Free frame
+    01 -> Head of sequence
+    10 -> Inaccessible
+    11 -> Allocated
     */
     unsigned char * bitmap; 		
     unsigned int nFreeFrames; 		//keeps track of no. of free frames

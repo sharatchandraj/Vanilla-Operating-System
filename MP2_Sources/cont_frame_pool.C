@@ -141,8 +141,8 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
 {
      
 	Console::puts("Initializing frame pool\n");
-    // Bitmap must fit in a single frame! Since we are using one char to hold the state of one frame. Max number of frames that can be managed by a pool is less than equal to 4K
-    assert(_n_frames<=FRAME_SIZE); 
+    // Bitmap must fit in a single frame! Since we are using two bits to hold the state of one frame. Max number of frames that can be managed by a pool is less than equal to 4K
+    assert(_n_frames<=FRAME_SIZE*8); 
 
     base_frame_no = _base_frame_no;
     nframes = _n_frames;
@@ -161,13 +161,13 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
     assert ((nframes % 8 ) == 0);
 
     // Everything ok. Proceed to mark all frames as free
-    for(int i=0; i < _n_frames; i++) {
-        bitmap[i] = 0xFF;
+    for(int i=0; i *8< _n_frames*2; i++) {
+        bitmap[i] = 0x00;
     }
 
     // Mark the first frame as being used if it is being used
     if(_info_frame_no == 0) {
-        bitmap[0] = 0x0F;
+        bitmap[0] = 0x40;
         nFreeFrames--;
     }
 
@@ -189,46 +189,54 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
 unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 {
 
-	Console::puts("get_frames(): No. of frames: ");Console::puti(nframes);Console::puts("\n");
-	int count, i , j;
-	bool flag = false;
-	unsigned int frame_no;
+	Console::puts("get_frames(): Number of free frames before allocation: ");Console::puti(nFreeFrames);Console::puts("\n");
+	int count=0;
+	int byte_pos; //holds the index of byte with head-of-sequence 
+	int pos_hos; //holds index of head-of-sequence within a byte
+	bool flag_hos = false;
+	bool flag_framesFound = false;
+	unsigned int frame_no=base_frame_no;
 
-	//First check if pool has enough free frames
-	/*
-	if(_n_frames>nFreeFrames){
-		Console::puts("No empty / free frames were found for length: ");
-        Console::puti(_n_frames);
-		Console::puts("\n");
-		return 0;
-	}
-	*/
-
-	for(i=0;i<nframes;i++){
-		Console::puts("get_frames(): Frame status ");Console::puti(bitmap[i]);
-		Console::puts("\n");
-		if(bitmap[i]==0xFF){
-			count =0;
-			for(j=i;j<nframes;j++){
-				if(bitmap[j]==0xFF){
+	for(int i=0;i<nframes/4;i++){
+		unsigned char mask = 0xC0;
+		
+		for(int j=0;j<4;j++){
+			if((bitmap[i]&mask)==0){
+				if(flag_hos){
 					count++;
 				}
-				if(count==_n_frames){
-					flag = true;
-					break;
-				}				
-			}		
-			if(flag==true){
+				else{
+					flag_hos=true;
+					frame_no = frame_no + (i*4+j);
+					byte_pos=i;
+					pos_hos=j;
+					count++;
+				}
+			}
+			else{
+				if(flag_hos){
+					frame_no=base_frame_no;
+					pos_hos=0;
+					byte_pos=0;
+					count=0;
+					flag_hos=false;
+				}
+			}
+
+			mask=mask>>2;
+
+			if(count==_n_frames){
+				flag_framesFound=true;
 				break;
-			}else{
-				i=j;
 			}
 		}
-
-
+		if(count == _n_frames){
+			flag_framesFound=true;
+			break;
+		}		
 	}
 
-	if(flag ==false){
+	if(flag_framesFound ==false){
 		Console::puts("No empty / free frames were found for length: ");
         Console::puti(_n_frames);
 		Console::puts("\n");
@@ -236,15 +244,54 @@ unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 	}
 
 	//Mark the allocated frames
-	frame_no=base_frame_no+i;
-	bitmap[i] = 0x0F;
-	for(i=i+1;i<=j;i++){
-		bitmap[i]=0xF0;
+	
+	//Mark Head-of-sequence
+	unsigned char head_mask = 0x40; //Mask to set head-of-sequence
+	unsigned char alloc_mask = 0xC0; //Mask to mark frames as allocated
+	unsigned char filter_mask = 0xC0;
+	count = _n_frames;
+	head_mask = head_mask>>(pos_hos*2);
+	filter_mask = filter_mask>>(pos_hos*2);
+	bitmap[byte_pos] = (bitmap[byte_pos] & ~filter_mask)| head_mask;
+	
+	pos_hos++;
+	count--;
+
+	//Mark the frames after the head of sequence
+	alloc_mask = alloc_mask>>(pos_hos*2);
+
+	while(count>0 && pos_hos<4){
+		bitmap[byte_pos] = bitmap[byte_pos] | alloc_mask;
+		alloc_mask=alloc_mask>>2;
+		pos_hos++;
+		count--;
+	}
+
+	for(int i = byte_pos+1;i<nframes/4;i++){
+		alloc_mask=0xC0;
+		for(int j=0;j<4;j++){
+
+			if(count==0) break;
+
+			bitmap[i] = bitmap[i] | alloc_mask;
+			alloc_mask=alloc_mask>>2;
+			count--;
+		}
+		if(count==0) break;
 	}
 	
+	
 	//Reduce number of free frames
-	nFreeFrames = nFreeFrames - _n_frames;
-	return frame_no;
+	if(flag_hos){
+		nFreeFrames = nFreeFrames - _n_frames;
+		return frame_no;
+	}
+	else{
+		Console::puts("No empty / free frames were found for length: ");
+        Console::puti(_n_frames);
+		Console::puts("\n");
+		return 0;
+	}
 
 }
 
@@ -256,8 +303,34 @@ void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
 		return;
 	}
 
-	for(int i=0;i<_n_frames;i++){
-		bitmap[_base_frame_no+i]=0x00;
+	int byte_pos = (_base_frame_no-base_frame_no)/4;
+	int pos_firstFrame = (_base_frame_no-base_frame_no)%4;
+	int count = _n_frames;
+
+	//Mark the frames as inaccessible
+	int index = pos_firstFrame;
+	unsigned char inacc_mask = 0x80;
+	inacc_mask = inacc_mask>>(pos_firstFrame*2);
+	
+
+	while(count>0 && index<4){
+		bitmap[byte_pos] = bitmap[byte_pos] | inacc_mask;
+		inacc_mask>>2;
+		index++;
+		count--;
+	}
+
+	for(int i = byte_pos+1;i<nframes/4;i++){
+		inacc_mask=0x80;
+		for(int j=0;j<4;j++){
+
+			if(count==0) break;
+
+			bitmap[i] = bitmap[i] | inacc_mask;
+			inacc_mask>>2;
+			count--;
+		}
+		if(count==0) break;
 	}
 
 	nFreeFrames = nFreeFrames -_n_frames;
@@ -267,8 +340,8 @@ void ContFramePool::release_frames(unsigned long _first_frame_no)
 {
 	Console::puts("Frame to be released ");Console::puti(_first_frame_no);Console::puts("\n");
     ContFramePool *current = ContFramePool::head;
-	Console::puts("No. of free frames before realeasing frames ");Console::puti(current->nFreeFrames);Console::puts("\n");
-	while ((current->base_frame_no > _first_frame_no || current->base_frame_no + current->nframes <= _first_frame_no)){
+	Console::puts("Number of free frames before realeasing frames ");Console::puti(current->nFreeFrames);Console::puts("\n");
+	while (current->base_frame_no > _first_frame_no || current->base_frame_no + current->nframes <= _first_frame_no){
         if (current->next == NULL){
             Console::puts("Frame was not found in this pool, can't release... \n");
             return;
@@ -279,26 +352,60 @@ void ContFramePool::release_frames(unsigned long _first_frame_no)
     }
 
 	unsigned char *bitmap_pointer = current->bitmap;
-    int position = (_first_frame_no - current->base_frame_no); //first frame position in bitmap
-    int index = position;
+	int difference = (_first_frame_no - current->base_frame_no)*2;
+    int byte_pos = difference/8; 
+	int pos_firstFrame = (difference % 8)/2;
     
 
-	if (bitmap_pointer[index] == 0x0F){
-        bitmap_pointer[index] = 0xFF;
-        current->nFreeFrames++;
+	unsigned char head_mask = 0x80;
+	unsigned char filter_mask = 0xC0;
 
-		for (int i = index+1; i < (current->base_frame_no + current->nframes); i++)
-        {
-            if (bitmap_pointer[i]  == 0xF0){
-                bitmap_pointer[i] = 0xFF;
-                current->nFreeFrames++;
-            }
-            else{
+	head_mask = head_mask>>(pos_firstFrame*2);
+	filter_mask = filter_mask>>(pos_firstFrame*2);   
+ 
+	//Console::puts("Byte from bitmap of first frame ");Console::puti(bitmap_pointer[byte_pos]);Console::puts("\n");
+	//Console::puts("Filter mask ");Console::puti(filter_mask);Console::puts("\n");
+	//Console::puts("head mask ");Console::puti(head_mask);Console::puts("\n");
+
+	if (((bitmap_pointer[byte_pos]^head_mask)&filter_mask ) == filter_mask){
+        bitmap_pointer[byte_pos] = bitmap_pointer[byte_pos] & (~filter_mask); //free head-of-sequence frame
+        current->nFreeFrames++;
+		filter_mask=filter_mask>>2;
+		pos_firstFrame++;
+
+		while(pos_firstFrame<4){
+			if((bitmap_pointer[byte_pos] & filter_mask) == filter_mask){
+				bitmap_pointer[byte_pos] = bitmap_pointer[byte_pos] & (~filter_mask);
+				filter_mask=filter_mask>>2;
+				current->nFreeFrames++;
+				pos_firstFrame++;
+			}
+			else{
 				Console::puts("Frames released successfully \n");
 				Console::puts("No. of free frames after realeasing frames ");Console::puti(current->nFreeFrames);Console::puts("\n");
-                return;
-            }
-        }
+				return;
+			}
+
+		}
+
+
+		for (int i = byte_pos+1; i < (current->base_frame_no+current->nframes)/4; i++)
+	    {
+			filter_mask = 0xC0;
+			for(int j =0 ;j<4;j++){
+				if((bitmap_pointer[i] & filter_mask) == filter_mask){
+					bitmap_pointer[i] = bitmap_pointer[i] & (~filter_mask);
+					filter_mask=filter_mask>>2;
+					current->nFreeFrames++;
+				}
+		        else{
+					Console::puts("Frames released successfully \n");
+					Console::puts("Number of free frames after realeasing frames ");Console::puti(current->nFreeFrames);Console::puts("\n");
+			        return;
+	        	}
+			}
+
+	    }	
 		
 	}
 	else{
@@ -310,5 +417,5 @@ void ContFramePool::release_frames(unsigned long _first_frame_no)
 
 unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
 {
-    return  _n_frames / 4096 + (_n_frames % 4096 > 0 ? 1 : 0);
+    return  _n_frames / 16384 + (_n_frames % 16384 > 0 ? 1 : 0);
 }
