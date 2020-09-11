@@ -41,7 +41,25 @@
 class ContFramePool {
     
 private:
-    /* -- DEFINE YOUR CONT FRAME POOL DATA STRUCTURE(s) HERE. */
+    /* -- Frame pool data structures */
+
+    /* We implement the simple frame pool with a bitmap
+    0xFF -> Free frame
+    0x0F -> Head of sequence
+    0xF0 -> Allocated Frame
+    0x00 -> Inaccessible
+    */
+    unsigned char * bitmap; 		
+    unsigned int nFreeFrames; 		//keeps track of no. of free frames
+    unsigned long base_frame_no; 	//Where does the frame pool start in phy memory
+    unsigned long nframes; 		//no. of frames in frame pool
+    unsigned long info_frame_no;	//Where we store management information
+    unsigned long n_info_frames;
+
+    static ContFramePool * head;	//points to head of the frame pool list
+    static ContFramePool * last;	//points to the last frame of the frame pool list
+    ContFramePool * next;
+    
     
 public:
 

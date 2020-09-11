@@ -1,8 +1,8 @@
 /*
  File: ContFramePool.C
  
- Author:
- Date  : 
+ Author: Sharat Chandra Janapareddy	
+ Date  : 8/6/20
  
  */
 
@@ -127,36 +127,188 @@
 /* METHODS FOR CLASS   C o n t F r a m e P o o l */
 /*--------------------------------------------------------------------------*/
 
+
+/*--------------------------------------------------------------------------*/
+/* POINTERS FOR FRAME POOL LINKED-LIST */
+/*--------------------------------------------------------------------------*/
+ContFramePool *ContFramePool::head;
+ContFramePool *ContFramePool::last;
+
 ContFramePool::ContFramePool(unsigned long _base_frame_no,
                              unsigned long _n_frames,
                              unsigned long _info_frame_no,
                              unsigned long _n_info_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    assert(false);
+     
+	Console::puts("Initializing frame pool\n");
+    // Bitmap must fit in a single frame! Since we are using one char to hold the state of one frame. Max number of frames that can be managed by a pool is less than equal to 4K
+    assert(_n_frames<=FRAME_SIZE); 
+
+    base_frame_no = _base_frame_no;
+    nframes = _n_frames;
+    nFreeFrames = _n_frames;
+    info_frame_no = _info_frame_no;
+
+    // If _info_frame_no is zero then we keep management info in the first
+    //frame, else we use the provided frame to keep management info
+    if(info_frame_no == 0) {
+        bitmap = (unsigned char *) (base_frame_no * FRAME_SIZE);
+    } else {
+        bitmap = (unsigned char *) (info_frame_no * FRAME_SIZE);
+    }
+
+    // Number of frames must be "fill" the bitmap!
+    assert ((nframes % 8 ) == 0);
+
+    // Everything ok. Proceed to mark all frames as free
+    for(int i=0; i < _n_frames; i++) {
+        bitmap[i] = 0xFF;
+    }
+
+    // Mark the first frame as being used if it is being used
+    if(_info_frame_no == 0) {
+        bitmap[0] = 0x0F;
+        nFreeFrames--;
+    }
+
+    if(ContFramePool::head==NULL){
+    	ContFramePool::head=this;
+    	ContFramePool::last=this;
+    }
+    else{
+    	ContFramePool::last->next = this;
+    	ContFramePool::last=this;
+    }
+
+    next=NULL;
+
+    Console::puts("Frame Pool initialized with ");Console::puti(nframes);Console::puts(" frames\n");
+	Console::puts("Frame Pool has ");Console::puti(nFreeFrames);Console::puts(" free frames left\n");
 }
 
 unsigned long ContFramePool::get_frames(unsigned int _n_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    assert(false);
+
+	Console::puts("get_frames(): No. of frames: ");Console::puti(nframes);Console::puts("\n");
+	int count, i , j;
+	bool flag = false;
+	unsigned int frame_no;
+
+	//First check if pool has enough free frames
+	/*
+	if(_n_frames>nFreeFrames){
+		Console::puts("No empty / free frames were found for length: ");
+        Console::puti(_n_frames);
+		Console::puts("\n");
+		return 0;
+	}
+	*/
+
+	for(i=0;i<nframes;i++){
+		Console::puts("get_frames(): Frame status ");Console::puti(bitmap[i]);
+		Console::puts("\n");
+		if(bitmap[i]==0xFF){
+			count =0;
+			for(j=i;j<nframes;j++){
+				if(bitmap[j]==0xFF){
+					count++;
+				}
+				if(count==_n_frames){
+					flag = true;
+					break;
+				}				
+			}		
+			if(flag==true){
+				break;
+			}else{
+				i=j;
+			}
+		}
+
+
+	}
+
+	if(flag ==false){
+		Console::puts("No empty / free frames were found for length: ");
+        Console::puti(_n_frames);
+		Console::puts("\n");
+		return 0;
+	}
+
+	//Mark the allocated frames
+	frame_no=base_frame_no+i;
+	bitmap[i] = 0x0F;
+	for(i=i+1;i<=j;i++){
+		bitmap[i]=0xF0;
+	}
+	
+	//Reduce number of free frames
+	nFreeFrames = nFreeFrames - _n_frames;
+	return frame_no;
+
 }
 
 void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
                                       unsigned long _n_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    assert(false);
+	if(_base_frame_no<base_frame_no || base_frame_no + nframes < _base_frame_no + _n_frames){
+		Console::puts("Frame index out of range");
+		return;
+	}
+
+	for(int i=0;i<_n_frames;i++){
+		bitmap[_base_frame_no+i]=0x00;
+	}
+
+	nFreeFrames = nFreeFrames -_n_frames;
 }
 
 void ContFramePool::release_frames(unsigned long _first_frame_no)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    assert(false);
+	Console::puts("Frame to be released ");Console::puti(_first_frame_no);Console::puts("\n");
+    ContFramePool *current = ContFramePool::head;
+	Console::puts("No. of free frames before realeasing frames ");Console::puti(current->nFreeFrames);Console::puts("\n");
+	while ((current->base_frame_no > _first_frame_no || current->base_frame_no + current->nframes <= _first_frame_no)){
+        if (current->next == NULL){
+            Console::puts("Frame was not found in this pool, can't release... \n");
+            return;
+        }
+        else{
+            current = current->next;
+        }
+    }
+
+	unsigned char *bitmap_pointer = current->bitmap;
+    int position = (_first_frame_no - current->base_frame_no); //first frame position in bitmap
+    int index = position;
+    
+
+	if (bitmap_pointer[index] == 0x0F){
+        bitmap_pointer[index] = 0xFF;
+        current->nFreeFrames++;
+
+		for (int i = index+1; i < (current->base_frame_no + current->nframes); i++)
+        {
+            if (bitmap_pointer[i]  == 0xF0){
+                bitmap_pointer[i] = 0xFF;
+                current->nFreeFrames++;
+            }
+            else{
+				Console::puts("Frames released successfully \n");
+				Console::puts("No. of free frames after realeasing frames ");Console::puti(current->nFreeFrames);Console::puts("\n");
+                return;
+            }
+        }
+		
+	}
+	else{
+		Console::puts("Error: _first_frame_no is not HEAD-OF-SEQUENCE\n");
+	}
+	
+    
 }
 
 unsigned long ContFramePool::needed_info_frames(unsigned long _n_frames)
 {
-    // TODO: IMPLEMENTATION NEEEDED!
-    assert(false);
+    return  _n_frames / 4096 + (_n_frames % 4096 > 0 ? 1 : 0);
 }
