@@ -96,6 +96,8 @@ int main() {
     test_memory(&kernel_mem_pool, 32);
 
     /* ---- Add code here to test the frame pool implementation. */
+
+	test_memory(&process_mem_pool, 32);
     
     /* -- NOW LOOP FOREVER */
     Console::puts("Testing is DONE. We will do nothing forever\n");

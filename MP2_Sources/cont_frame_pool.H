@@ -57,7 +57,7 @@ private:
     unsigned long n_info_frames;
 
     static ContFramePool * head;	//points to head of the frame pool list
-    static ContFramePool * last;	//points to the last frame of the frame pool list
+    static ContFramePool * last;	//points to the last frame pool of the frame pool list
     ContFramePool * next;
     
     
