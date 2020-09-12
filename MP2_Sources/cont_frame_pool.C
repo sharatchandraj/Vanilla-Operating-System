@@ -141,8 +141,9 @@ ContFramePool::ContFramePool(unsigned long _base_frame_no,
 {
      
 	Console::puts("Initializing frame pool\n");
-    // Bitmap must fit in a single frame! Since we are using two bits to hold the state of one frame. Max number of frames that can be managed by a pool is less than equal to 4K
-    assert(_n_frames<=FRAME_SIZE*8); 
+    // Bitmap must fit in a single frame! Since we are using two bits to hold the state of one frame. Max number of frames that can be managed by a pool is less than equal to 4K*4. 
+	//As each byte can keep track of 4 frames
+    //assert(_n_frames<=FRAME_SIZE*4); 
 
     base_frame_no = _base_frame_no;
     nframes = _n_frames;
@@ -334,6 +335,7 @@ void ContFramePool::mark_inaccessible(unsigned long _base_frame_no,
 	}
 
 	nFreeFrames = nFreeFrames -_n_frames;
+	Console::puts("Number of free frames left after marking some as inaccessible ");Console::puti(nFreeFrames);Console::puts("\n");
 }
 
 void ContFramePool::release_frames(unsigned long _first_frame_no)
