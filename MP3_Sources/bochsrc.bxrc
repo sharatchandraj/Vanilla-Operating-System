@@ -9,9 +9,11 @@ megs: 32
 romimage: file=BIOS-bochs-latest
 vgaromimage: file=VGABIOS-lgpl-latest
 
-# what disk images will be used 
+# what disk images will be used
 floppya: 1_44=dev_kernel_grub.img, status=inserted
 #floppyb: 1_44=floppyb.img, status=inserted
+
+#gdbstub: enabled=1, port=1234, text_base=0, data_base=0, bss_base=0
 
 # hard disk
 #ata0: enabled=1, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
@@ -35,8 +37,8 @@ mouse: enabled=0
 # enable key mapping, using US layout as default.
 #
 # NOTE: In Bochs 1.4, keyboard mapping is only 100% implemented on X windows.
-# However, the key mapping tables are used in the paste function, so 
-# in the DLX Linux example I'm enabling keyboard_mapping so that paste 
+# However, the key mapping tables are used in the paste function, so
+# in the DLX Linux example I'm enabling keyboard_mapping so that paste
 # will work.  Cut&Paste is currently implemented on win32 and X windows only.
 
 #keyboard_mapping: enabled=1, map=$BXSHARE/keymaps/x11-pc-us.map
