@@ -1,16 +1,16 @@
 /*
  File: cont_frame_pool.H
- 
+
  Author: R. Bettati
  Department of Computer Science
  Texas A&M University
- Date  : 17/02/04 
- 
+ Date  : 17/02/04
+
  Description: Management of the CONTIGUOUS Free-Frame Pool.
- 
+
  As opposed to a non-contiguous free-frame pool, here we can allocate
  a sequence of CONTIGUOUS frames.
- 
+
  */
 
 #ifndef _CONT_FRAME_POOL_H_                   // include file only once
@@ -39,14 +39,32 @@
 /*--------------------------------------------------------------------------*/
 
 class ContFramePool {
-    
+
 private:
-    /* -- DEFINE YOUR CONT FRAME POOL DATA STRUCTURE(s) HERE. */
-    
+    /* -- Frame pool data structures */
+
+    /* We implement the simple frame pool with a bitmap
+    00 -> Free frame
+    01 -> Head of sequence
+    10 -> Inaccessible
+    11 -> Allocated
+    */
+    unsigned char * bitmap;
+    unsigned int nFreeFrames; 		//keeps track of no. of free frames
+    unsigned long base_frame_no; 	//Where does the frame pool start in phy memory
+    unsigned long nframes; 		//no. of frames in frame pool
+    unsigned long info_frame_no;	//Where we store management information
+    unsigned long n_info_frames;
+
+    static ContFramePool * head;	//points to head of the frame pool list
+    static ContFramePool * last;	//points to the last frame pool of the frame pool list
+    ContFramePool * next;
+
+
 public:
 
-    // The frame size is the same as the page size, duh...    
-    static const unsigned int FRAME_SIZE = Machine::PAGE_SIZE; 
+    // The frame size is the same as the page size, duh...
+    static const unsigned int FRAME_SIZE = Machine::PAGE_SIZE;
 
     ContFramePool(unsigned long _base_frame_no,
                   unsigned long _n_frames,
@@ -57,7 +75,7 @@ public:
      frame pool.
      _base_frame_no: Number of first frame managed by this frame pool.
      _n_frames: Size, in frames, of this frame pool.
-     EXAMPLE: If _base_frame_no is 16 and _nframes is 4, this frame pool manages
+     EXAMPLE: If _base_frame_no is 16 and _n_frames is 4, this frame pool manages
      physical frames numbered 16, 17, 18 and 19.
      _info_frame_no: Number of the first frame that should be used to store the
      management information for the frame pool.
@@ -72,7 +90,7 @@ public:
      NOTE: This function must be called before the paging system
      is initialized.
      */
-    
+
     unsigned long get_frames(unsigned int _n_frames);
     /*
      Allocates a number of contiguous frames from the frame pool.
@@ -81,7 +99,7 @@ public:
      If successful, returns the frame number of the first frame.
      If fails, returns 0.
      */
-    
+
     void mark_inaccessible(unsigned long _base_frame_no,
                            unsigned long _n_frames);
     /*
@@ -90,7 +108,7 @@ public:
      _base_frame_no: Number of first frame to mark as inaccessible.
      _n_frames: Number of contiguous frames to mark as inaccessible.
      */
-    
+
     static void release_frames(unsigned long _first_frame_no);
     /*
      Releases a previously allocated contiguous sequence of frames
@@ -101,14 +119,14 @@ public:
      This function must first identify the correct frame pool and then call the frame
      pool's release_frame function.
      */
-    
+
     static unsigned long needed_info_frames(unsigned long _n_frames);
     /*
      Returns the number of frames needed to manage a frame pool of size _n_frames.
-     The number returned here depends on the implementation of the frame pool and 
+     The number returned here depends on the implementation of the frame pool and
      on the frame size.
-     EXAMPLE: For FRAME_SIZE = 4096 and a bitmap with a single bit per frame 
-     (not appropriate for contiguous allocation) one would need one frame to manage a 
+     EXAMPLE: For FRAME_SIZE = 4096 and a bitmap with a single bit per frame
+     (not appropriate for contiguous allocation) one would need one frame to manage a
      frame pool with up to 8 * 4096 = 32k frames = 128MB of memory!
      This function would therefore return the following value:
        _n_frames / 32k + (_n_frames % 32k > 0 ? 1 : 0) (always round up!)

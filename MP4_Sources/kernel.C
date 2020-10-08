@@ -121,9 +121,9 @@ int main() {
 
 
     /* -- EXAMPLE OF AN EXCEPTION HANDLER -- */
-    
+
     class DBZ_Handler : public ExceptionHandler {
-      /* We derive Division-by-Zero handler from ExceptionHandler 
+      /* We derive Division-by-Zero handler from ExceptionHandler
          and overload the method handle_exception. */
     public:
         virtual void handle_exception(REGS * _regs) {
@@ -131,32 +131,32 @@ int main() {
             for(;;);
         }
     } dbz_handler;
-    
-    /* Register the DBZ handler for exception no.0 
+
+    /* Register the DBZ handler for exception no.0
        with the exception dispatcher. */
     ExceptionHandler::register_handler(0, &dbz_handler);
-    
+
 
     /* -- INITIALIZE THE TIMER (we use a very simple timer).-- */
-    
+
     SimpleTimer timer(100); /* timer ticks every 10ms. */
-    
-    /* ---- Register timer handler for interrupt no.0 
+
+    /* ---- Register timer handler for interrupt no.0
             with the interrupt dispatcher. */
     InterruptHandler::register_handler(0, &timer);
-    
+
     /* NOTE: The timer chip starts periodically firing as
      soon as we enable interrupts.
      It is important to install a timer handler, as we
      would get a lot of uncaptured interrupts otherwise. */
-    
+
     /* -- INSTALL KEYBOARD HANDLER -- */
     SimpleKeyboard::init();
 
     Console::puts("after installing keyboard handler\n");
 
     /* -- ENABLE INTERRUPTS -- */
-    
+
     Machine::enable_interrupts();
 
     /* -- INITIALIZE FRAME POOLS -- */
@@ -166,10 +166,10 @@ int main() {
                                   0,
 				  0);
 
-    unsigned long n_info_frames = 
+    unsigned long n_info_frames =
       ContFramePool::needed_info_frames(PROCESS_POOL_SIZE);
 
-    unsigned long process_mem_pool_info_frame = 
+    unsigned long process_mem_pool_info_frame =
       kernel_mem_pool.get_frames(n_info_frames);
 
     ContFramePool process_mem_pool(PROCESS_POOL_START_FRAME,
@@ -185,7 +185,7 @@ int main() {
     /* ---- INSTALL PAGE FAULT HANDLER -- */
 
     class PageFault_Handler : public ExceptionHandler {
-      /* We derive the page fault handler from ExceptionHandler 
+      /* We derive the page fault handler from ExceptionHandler
 	 and overload the method handle_exception. */
       public:
       virtual void handle_exception(REGS * _regs) {
@@ -231,7 +231,7 @@ int main() {
 
     VMPool code_pool(512 MB, 256 MB, &process_mem_pool, &pt1);
     VMPool heap_pool(1 GB, 256 MB, &process_mem_pool, &pt1);
-    
+
     /* -- NOW THE POOLS HAVE BEEN CREATED. */
 
     Console::puts("VM Pools successfully created!\n");
@@ -253,11 +253,11 @@ int main() {
 
 void GeneratePageTableMemoryReferences(unsigned long start_address, int n_references) {
   int *foo = (int *) start_address;
-  
+
   for (int i=0; i<n_references; i++) {
     foo[i] = i;
   }
-  
+
   Console::puts("DONE WRITING TO MEMORY. Now testing...\n");
 
   for (int i=0; i<n_references; i++) {
