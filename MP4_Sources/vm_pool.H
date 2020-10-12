@@ -35,13 +35,24 @@
 /* We need this to break a circular include sequence. */
 class PageTable;
 
+struct mem_region{
+    unsigned long region_base_address;
+    unsigned long region_size;
+};
+
 /*--------------------------------------------------------------------------*/
 /* V M  P o o l  */
 /*--------------------------------------------------------------------------*/
 
 class VMPool { /* Virtual Memory Pool */
 private:
-   /* -- DEFINE YOUR VIRTUAL MEMORY POOL DATA STRUCTURE(s) HERE. */
+   unsigned long base_address;
+   unsigned long size;
+   ContFramePool *frame_pool;
+   PageTable *page_table;
+
+   struct mem_region *mem_region_list; //will hold list of memory regions
+   unsigned long last_mem_region; //will hold index of the last memory region
 
 public:
    VMPool(unsigned long  _base_address,

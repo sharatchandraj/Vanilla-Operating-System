@@ -59,6 +59,8 @@ PageTable::PageTable()
     //setting the last page directory entry to point to itself
     page_directory[1023] = (unsigned long)page_directory|3;
 
+    last_vm_pool=0;
+
     Console::puts("Constructed Page Table object!\n");
 }
 
@@ -90,6 +92,21 @@ void PageTable::handle_fault(REGS * _r)
 
     unsigned long fault_address = (unsigned long)read_cr2();
     unsigned long *current_page_directory = (unsigned long *)0xFFFFF000;  //to make use of recursive page lookup
+
+    //check if address is legitimate
+    bool flag= true;
+    for(int i=0;i<10;i++){
+        if(current_page_table->vm_pool_list[i]->is_legitimate(fault_address)){
+            flag=true;
+            break;
+        }
+    }
+
+    if(flag==false){
+        Console::puts("Address is not legitimate\n");
+        return;
+    }
+
     unsigned long pda = fault_address>>22; //index of entry in Page Directory
     unsigned long pta = (fault_address>>12)&0x3FF; //index of entry in Page Table
 
@@ -118,4 +135,35 @@ void PageTable::handle_fault(REGS * _r)
     }
 
     Console::puts("handled page fault\n");
+}
+
+void PageTable::register_pool(VMPool * _vm_pool){
+
+
+    for (int i = 0; i < 10; i++) {
+        if (this -> vm_pool_list[i] == NULL) {
+            this -> vm_pool_list[i] = _vm_pool;
+            last_vm_pool++;
+            return;
+        }
+    }
+}
+
+void PageTable::free_page(unsigned long _page_no){
+
+    unsigned long pda = _page_no>>22; //index of entry in Page Directory
+    unsigned long pta = (_page_no>>12)&0x3FF; //index of entry in Page Table
+
+    unsigned long *page_table = (unsigned long *) (0xFFC00000|(pda<<12)); //shifting the bits to make use of recursive page look up
+
+    unsigned long frame_no = page_table[pta]/PAGE_SIZE;
+
+    ContFramePool::release_frames(frame_no);
+
+
+    page_table[pta] = (unsigned long)(0|2); //clearing page table entry and only setting bit2
+
+    Console::puts("Page freed!\n");
+
+
 }

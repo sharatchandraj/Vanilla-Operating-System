@@ -216,7 +216,7 @@ int main() {
     Console::puts("Hello World!\n");
 
     /* Comment out the following line to test the VM Pools */
-#define _TEST_PAGE_TABLE_
+//#define _TEST_PAGE_TABLE_
 
 #ifdef _TEST_PAGE_TABLE_
 
@@ -272,6 +272,7 @@ void GenerateVMPoolMemoryReferences(VMPool *pool, int size1, int size2) {
    for(int i=1; i<size1; i++) {
       int *arr = new int[size2 * i];
       if(pool->is_legitimate((unsigned long)arr) == false) {
+          Console::puts("TEST FAILED WHILE CHECKING LEGITIMACY\n");
          TestFailed();
       }
       for(int j=0; j<size2*i; j++) {
@@ -279,6 +280,7 @@ void GenerateVMPoolMemoryReferences(VMPool *pool, int size1, int size2) {
       }
       for(int j=size2*i - 1; j>=0; j--) {
          if(arr[j] != j) {
+             Console::puts("TEST FAILED WHILE CHECKING VM values\n");
             TestFailed();
          }
       }
