@@ -1,9 +1,9 @@
 /*
  File: scheduler.C
- 
+
  Author:
  Date  :
- 
+
  */
 
 /*--------------------------------------------------------------------------*/
@@ -46,22 +46,62 @@
 /*--------------------------------------------------------------------------*/
 
 Scheduler::Scheduler() {
-  assert(false);
+
+
+    head = NULL;
+    tail = NULL;
+
   Console::puts("Constructed Scheduler.\n");
 }
 
 void Scheduler::yield() {
-  assert(false);
+
+
+    if(head!=NULL){
+        readyQ *thread_TBR = head; //thread To Be Run
+
+        if(tail == thread_TBR)  //only one thread in queue
+            tail = NULL;
+
+        Thread *thread_TCB = thread_TBR->TCB;
+
+        head=head->next;
+
+        delete thread_TBR;
+
+        Thread::dispatch_to(thread_TCB);
+
+        Console::puts("Yielded CPU.\n");
+    }
+
 }
 
 void Scheduler::resume(Thread * _thread) {
-  assert(false);
+
+    readyQ *thread = new readyQ;
+
+    thread->TCB = _thread;
+
+    thread->next = NULL;
+
+    if(head!=NULL){
+        tail->next=thread;
+        tail=tail->next;
+    } else{
+        head = thread;
+        tail = thread;
+    }
+
+    Console::puts("Added a thread to the queue\n");
+
 }
 
 void Scheduler::add(Thread * _thread) {
-  assert(false);
+
+    resume(_thread);
+
 }
 
 void Scheduler::terminate(Thread * _thread) {
-  assert(false);
+    assert(false);
 }
