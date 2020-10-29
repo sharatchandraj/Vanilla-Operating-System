@@ -56,6 +56,7 @@ Scheduler::Scheduler() {
 
 void Scheduler::yield() {
 
+    Machine::disable_interrupts();
 
     if(head!=NULL){
         readyQ *thread_TBR = head; //thread To Be Run
@@ -71,12 +72,15 @@ void Scheduler::yield() {
 
         Thread::dispatch_to(thread_TCB);
 
-        Console::puts("Yielded CPU.\n");
     }
+
+    Machine::enable_interrupts();
 
 }
 
 void Scheduler::resume(Thread * _thread) {
+
+    Machine::disable_interrupts();
 
     readyQ *thread = new readyQ;
 
@@ -92,7 +96,7 @@ void Scheduler::resume(Thread * _thread) {
         tail = thread;
     }
 
-    Console::puts("Added a thread to the queue\n");
+    Machine::enable_interrupts();
 
 }
 
@@ -103,5 +107,29 @@ void Scheduler::add(Thread * _thread) {
 }
 
 void Scheduler::terminate(Thread * _thread) {
-    assert(false);
+
+    readyQ *thread_TBR = head; // thread To Be Run
+    readyQ *thread_CE = new readyQ; //thread Currently Executing
+
+
+    thread_CE->TCB = NULL;
+    thread_CE->next = thread_TBR;
+
+
+    while(thread_TBR!=NULL){ //loop to traverse queue
+        if(thread_TBR->TCB == _thread){ //thread found
+            thread_CE->next = thread_TBR->next;
+            delete thread_TBR;
+
+            Machine::disable_interrupts();
+
+            thread_TBR = thread_CE->next;
+            continue;
+        }
+        thread_CE = thread_TBR;
+        thread_TBR = thread_TBR->next;
+    }
+
+
+    Machine::enable_interrupts();
 }
