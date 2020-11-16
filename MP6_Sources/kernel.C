@@ -1,4 +1,4 @@
-/* 
+/*
     File: kernel.C
 
     Author: R. Bettati
@@ -19,10 +19,10 @@
 
 /* -- COMMENT/UNCOMMENT THE FOLLOWING LINE TO EXCLUDE/INCLUDE SCHEDULER CODE */
 
-//#define _USES_SCHEDULER_
-/* This macro is defined when we want to force the code below to use 
+#define _USES_SCHEDULER_
+/* This macro is defined when we want to force the code below to use
    a scheduler.
-   Otherwise, no scheduler is used, and the threads pass control to each 
+   Otherwise, no scheduler is used, and the threads pass control to each
    other in a co-routine fashion.
 */
 
@@ -38,7 +38,7 @@
 #include "gdt.H"
 #include "idt.H"             /* EXCEPTION MGMT.   */
 #include "irq.H"
-#include "exceptions.H"     
+#include "exceptions.H"
 #include "interrupts.H"
 
 #include "simple_timer.H"    /* TIMER MANAGEMENT  */
@@ -53,7 +53,8 @@
 #endif
 
 #include "simple_disk.H"    /* DISK DEVICE */
-                            /* YOU MAY NEED TO INCLUDE blocking_disk.H
+                            /* YOU MAY NEED TO INCLUDE blocking_disk.H*/
+#include "blocking_disk.H"
 /*--------------------------------------------------------------------------*/
 /* MEMORY MANAGEMENT */
 /*--------------------------------------------------------------------------*/
@@ -104,7 +105,7 @@ Scheduler * SYSTEM_SCHEDULER;
 /*--------------------------------------------------------------------------*/
 
 /* -- A POINTER TO THE SYSTEM DISK */
-SimpleDisk * SYSTEM_DISK;
+BlockingDisk * SYSTEM_DISK;
 
 #define SYSTEM_DISK_SIZE (10 MB)
 
@@ -120,7 +121,7 @@ void pass_on_CPU(Thread * _to_thread) {
 
         /* We don't use a scheduler. Explicitely pass control to the next
            thread in a co-routine fashion. */
-	Thread::dispatch_to(_to_thread); 
+	Thread::dispatch_to(_to_thread);
 
 #else
 
@@ -128,7 +129,7 @@ void pass_on_CPU(Thread * _to_thread) {
            we pre-empt the current thread by putting it onto the ready
            queue and yielding the CPU. */
 
-        SYSTEM_SCHEDULER->resume(Thread::CurrentThread()); 
+        SYSTEM_SCHEDULER->resume(Thread::CurrentThread());
         SYSTEM_SCHEDULER->yield();
 #endif
 }
@@ -184,7 +185,7 @@ void fun2() {
        }
 
        Console::puts("Writing a block to disk...\n");
-       SYSTEM_DISK->write(write_block, buf); 
+       SYSTEM_DISK->write(write_block, buf);
 
        /* -- Move to next block */
        write_block = read_block;
@@ -200,15 +201,32 @@ void fun3() {
 
     Console::puts("FUN 3 INVOKED!\n");
 
-     for(int j = 0;; j++) {
+    unsigned char buf[DISK_BLOCK_SIZE];
+    int  read_block  = 1;
+    int  write_block = 0;
 
-       Console::puts("FUN 3 IN BURST["); Console::puti(j); Console::puts("]\n");
+    for(int j = 0;; j++) {
 
-       for (int i = 0; i < 10; i++) {
-           Console::puts("FUN 3: TICK ["); Console::puti(i); Console::puts("]\n");
+       Console::puts("FUN 3 IN ITERATION["); Console::puti(j); Console::puts("]\n");
+
+       /* -- Read */
+       Console::puts("Reading a block from disk...\n");
+       SYSTEM_DISK->read(read_block, buf);
+
+       /* -- Display */
+       for (int i = 0; i < DISK_BLOCK_SIZE; i++) {
+           Console::putch(buf[i]);
        }
-    
-       pass_on_CPU(thread4);
+
+       Console::puts("Writing a block to disk...\n");
+       SYSTEM_DISK->write(write_block, buf);
+
+       /* -- Move to next block */
+       write_block = read_block;
+       read_block  = (read_block + 1) % 10;
+
+       /* -- Give up the CPU */
+       pass_on_CPU(thread3);
     }
 }
 
@@ -260,7 +278,7 @@ int main() {
     /* ---- Initialize a frame pool; details are in its implementation */
     FramePool system_frame_pool;
     SYSTEM_FRAME_POOL = &system_frame_pool;
-   
+
     /* ---- Create a memory pool of 256 frames. */
     MemPool memory_pool(SYSTEM_FRAME_POOL, 256);
     MEMORY_POOL = &memory_pool;
@@ -269,7 +287,7 @@ int main() {
 
     /* -- INITIALIZE THE TIMER (we use a very simple timer).-- */
 
-    /* Question: Why do we want a timer? We have it to make sure that 
+    /* Question: Why do we want a timer? We have it to make sure that
                  we enable interrupts correctly. If we forget to do it,
                  the timer "dies". */
 
@@ -280,19 +298,20 @@ int main() {
 #ifdef _USES_SCHEDULER_
 
     /* -- SCHEDULER -- IF YOU HAVE ONE -- */
-  
+
     SYSTEM_SCHEDULER = new Scheduler();
 
 #endif
 
     /* -- DISK DEVICE -- */
 
-    SYSTEM_DISK = new SimpleDisk(MASTER, SYSTEM_DISK_SIZE);
-   
-    /* NOTE: The timer chip starts periodically firing as 
+    SYSTEM_DISK = new BlockingDisk(MASTER, SYSTEM_DISK_SIZE);
+    SYSTEM_SCHEDULER->add_disk(SYSTEM_DISK);
+
+    /* NOTE: The timer chip starts periodically firing as
              soon as we enable interrupts.
-             It is important to install a timer handler, as we 
-             would get a lot of uncaptured interrupts otherwise. */  
+             It is important to install a timer handler, as we
+             would get a lot of uncaptured interrupts otherwise. */
 
     /* -- ENABLE INTERRUPTS -- */
 
@@ -340,7 +359,7 @@ int main() {
     Thread::dispatch_to(thread1);
 
     /* -- AND ALL THE REST SHOULD FOLLOW ... */
- 
+
     assert(false); /* WE SHOULD NEVER REACH THIS POINT. */
 
     /* -- WE DO THE FOLLOWING TO KEEP THE COMPILER HAPPY. */
